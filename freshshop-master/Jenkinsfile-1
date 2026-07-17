@@ -1,15 +1,16 @@
 pipeline {
-
     agent any
 
     environment {
         REMOTE_HOST = "54.145.217.16"
         REMOTE_USER = "ubuntu"
 
-        IMAGE_NAME = "mywebsite2"
-        CONTAINER_NAME = "freshshop-master2"
+        IMAGE_NAME = "mywebsite"
+        CONTAINER_NAME = "freshshop-master1"
 
-        SONAR_SCANNER = tool 'SonarScanner'
+        APP_PORT = "8086"
+
+        SCANNER_HOME = tool 'sonarqube-scanner'
     }
 
     stages {
@@ -19,6 +20,18 @@ pipeline {
                 git branch: 'main',
                     credentialsId: 'freebird2318-coder',
                     url: 'https://github.com/freebird2318-coder/freshshop-master-CICD-jenkins-sonarqube-docker.git'
+            }
+        }
+
+        stage('Verify Workspace') {
+            steps {
+                sh '''
+                echo "Current Directory:"
+                pwd
+
+                echo "Workspace Files:"
+                ls -la
+                '''
             }
         }
 
@@ -32,7 +45,7 @@ pipeline {
                     ]) {
 
                         sh """
-                        ${SONAR_SCANNER}/bin/sonar-scanner \
+                        ${SCANNER_HOME}/bin/sonar-scanner \
                         -Dsonar.projectKey=freshshop-master \
                         -Dsonar.projectName=freshshop-master \
                         -Dsonar.sources=. \
@@ -53,39 +66,42 @@ pipeline {
             }
         }
 
-        stage('Deploy To Docker Server') {
+        stage('Deploy Application') {
 
             steps {
 
                 sshagent(credentials: ['docker-creds']) {
 
                     sh """
-
                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} '
-                    mkdir -p ~/website
+                        mkdir -p ~/website
                     '
 
-                    scp -o StrictHostKeyChecking=no -r ./* ${REMOTE_USER}@${REMOTE_HOST}:~/website/
+                    rsync -av --delete \
+                        --exclude=".git" \
+                        --exclude=".scannerwork" \
+                        ./ ${REMOTE_USER}@${REMOTE_HOST}:~/website/
 
                     ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} '
 
-                    cd ~/website
+                        cd ~/website
 
-                    docker rm -f ${CONTAINER_NAME} || true
+                        docker stop ${CONTAINER_NAME} || true
 
-                    docker rmi ${IMAGE_NAME} || true
+                        docker rm ${CONTAINER_NAME} || true
 
-                    docker build -t ${IMAGE_NAME} .
+                        docker rmi ${IMAGE_NAME} || true
 
-                    docker run -d \
-                        --name ${CONTAINER_NAME} \
-                        -p 8086:80 \
-                        ${IMAGE_NAME}
+                        docker build -t ${IMAGE_NAME} .
 
-                    docker ps
+                        docker run -d \
+                            --name ${CONTAINER_NAME} \
+                            -p ${APP_PORT}:80 \
+                            ${IMAGE_NAME}
+
+                        docker ps
 
                     '
-
                     """
                 }
             }
@@ -95,15 +111,11 @@ pipeline {
     post {
 
         success {
-            echo 'Build, SonarQube scan and Docker deployment completed successfully.'
+            echo 'Pipeline executed successfully.'
         }
 
         failure {
-            echo 'Pipeline failed.'
-        }
-
-        always {
-            cleanWs()
+            echo 'Pipeline execution failed.'
         }
     }
 }
