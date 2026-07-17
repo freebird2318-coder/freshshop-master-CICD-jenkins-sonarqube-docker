@@ -2,15 +2,14 @@ pipeline {
 
     agent any
 
-    tools {
-        sonarQube 'sonarqube-scanner'
-    }
-
     environment {
         REMOTE_HOST = "54.145.217.16"
         REMOTE_USER = "ubuntu"
-        IMAGE_NAME = "mywebsite1"
-        CONTAINER_NAME = "freshshop-master1"
+
+        IMAGE_NAME = "mywebsite2"
+        CONTAINER_NAME = "freshshop-master2"
+
+        SONAR_SCANNER = tool 'SonarScanner'
     }
 
     stages {
@@ -23,9 +22,7 @@ pipeline {
             }
         }
 
-
         stage('SonarQube Analysis') {
-
             steps {
 
                 withSonarQubeEnv('SonarQube') {
@@ -34,103 +31,79 @@ pipeline {
                         string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')
                     ]) {
 
-                        sh '''
-                        sonar-scanner \
+                        sh """
+                        ${SONAR_SCANNER}/bin/sonar-scanner \
                         -Dsonar.projectKey=freshshop-master \
                         -Dsonar.projectName=freshshop-master \
-                        -Dsonar.sources=freshshop-master \
-                        -Dsonar.host.url=$SONAR_HOST_URL \
-                        -Dsonar.token=$SONAR_TOKEN
-                        '''
+                        -Dsonar.sources=. \
+                        -Dsonar.host.url=\$SONAR_HOST_URL \
+                        -Dsonar.token=\$SONAR_TOKEN
+                        """
 
                     }
-
                 }
-
             }
-
         }
-
 
         stage('Quality Gate') {
-
             steps {
-
                 timeout(time: 5, unit: 'MINUTES') {
-
                     waitForQualityGate abortPipeline: true
-
                 }
-
             }
-
         }
-
 
         stage('Deploy To Docker Server') {
 
             steps {
 
-                sshagent(['docker-creds']) {
+                sshagent(credentials: ['docker-creds']) {
 
-                    sh '''
+                    sh """
 
-                    ssh -o StrictHostKeyChecking=no ubuntu@54.145.217.16 "
+                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} '
                     mkdir -p ~/website
-                    "
+                    '
 
+                    scp -o StrictHostKeyChecking=no -r ./* ${REMOTE_USER}@${REMOTE_HOST}:~/website/
 
-                    scp -o StrictHostKeyChecking=no -r \
-                    freshshop-master \
-                    ubuntu@54.145.217.16:~/website/
+                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} '
 
+                    cd ~/website
 
-                    ssh -o StrictHostKeyChecking=no ubuntu@54.145.217.16 "
+                    docker rm -f ${CONTAINER_NAME} || true
 
-                    cd ~/website/freshshop-master
+                    docker rmi ${IMAGE_NAME} || true
 
-
-                    docker rm -f freshshop-master1 || true
-
-
-                    docker rmi mywebsite1 || true
-
-
-                    docker build -t mywebsite2 .
-
+                    docker build -t ${IMAGE_NAME} .
 
                     docker run -d \
-                    -p 8086:80 \
-                    --name fruitkha-website2 \
-                    mywebsite
-
+                        --name ${CONTAINER_NAME} \
+                        -p 8086:80 \
+                        ${IMAGE_NAME}
 
                     docker ps
 
-                    "
+                    '
 
-                    '''
-
+                    """
                 }
-
             }
-
         }
-
     }
-
 
     post {
 
         success {
-            echo "Build, SonarQube scan and Docker deployment completed successfully."
+            echo 'Build, SonarQube scan and Docker deployment completed successfully.'
         }
 
         failure {
-            echo "Pipeline failed."
+            echo 'Pipeline failed.'
         }
 
+        always {
+            cleanWs()
+        }
     }
-
 }
-
