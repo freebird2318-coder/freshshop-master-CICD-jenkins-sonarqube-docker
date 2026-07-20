@@ -29,17 +29,17 @@ pipeline {
 
                     sh '''
 
-                    ssh -o StrictHostKeyChecking=no ubuntu@54.145.217.16 "
+                    ssh -o StrictHostKeyChecking=no ubuntu@3.81.133.100 "
                     mkdir -p ~/website
                     "
 
 
                     scp -o StrictHostKeyChecking=no -r \
                     freshshop-master \
-                    ubuntu@54.145.217.16:~/website/
+                    ubuntu@3.81.133.100:~/website/
 
 
-                    ssh -o StrictHostKeyChecking=no ubuntu@54.145.217.16 "
+                    ssh -o StrictHostKeyChecking=no ubuntu@3.81.133.100"
 
                     cd ~/website/freshshop-master
 
@@ -59,7 +59,7 @@ pipeline {
                     "
 
 
-                    ssh -o StrictHostKeyChecking=no ubuntu@54.145.217.16 "
+                    ssh -o StrictHostKeyChecking=no ubuntu@3.81.133.100 "
 
                     docker ps
 
