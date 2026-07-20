@@ -53,7 +53,7 @@ pipeline {
                     docker run -d \
                     -p 8086:80 \
                     --name freshshop-master1 \
-                    mywebsite
+                    mywebsite1
 
 
                     "
