@@ -87,12 +87,12 @@ pipeline {
 
                         script {
 
-                            def scannerHome = tool 'sonar-scanner'
+                            def scannerHome = tool 'sonarqube-scanner'
 
 
                             sh """
 
-                            ${scannerHome}/bin/sonar-scanner \\
+                            ${scannerHome}/bin/sonarqube-scanner \\
 
                             -Dsonar.projectKey=${SONAR_PROJECT_KEY} \\
 
