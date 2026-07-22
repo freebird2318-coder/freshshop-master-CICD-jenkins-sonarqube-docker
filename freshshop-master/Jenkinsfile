@@ -17,11 +17,11 @@ pipeline {
                 sshagent(['docker-creds']) {
 
                     sh '''
-                        ssh -o StrictHostKeyChecking=no ubuntu@3.81.133.100 "mkdir -p ~/website"
+                        ssh -o StrictHostKeyChecking=no ubuntu@52.206.100.189 "mkdir -p ~/website"
 
-                        scp -o StrictHostKeyChecking=no -r freshshop-master ubuntu@3.81.133.100:~/website/
+                        scp -o StrictHostKeyChecking=no -r freshshop-master ubuntu@52.206.100.189:~/website/
 
-                        ssh -o StrictHostKeyChecking=no ubuntu@3.81.133.100 "
+                        ssh -o StrictHostKeyChecking=no ubuntu@52.206.100.189 "
                             cd ~/website/freshshop-master
 
                             docker rm -f freshshop-master1 || true
@@ -34,7 +34,7 @@ pipeline {
                                 mywebsite1
                         "
 
-                        ssh -o StrictHostKeyChecking=no ubuntu@3.81.133.100 "docker ps"
+                        ssh -o StrictHostKeyChecking=no ubuntu@52.206.100.189 "docker ps"
                     '''
                 }
             }
