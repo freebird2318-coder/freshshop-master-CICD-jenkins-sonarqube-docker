@@ -92,7 +92,7 @@ pipeline {
 
                             sh """
 
-                            ${scannerHome}/bin/sonarqube-scanner \\
+                            ${scannerHome}/bin/sonar-scanner \\
 
                             -Dsonar.projectKey=${SONAR_PROJECT_KEY} \\
 
