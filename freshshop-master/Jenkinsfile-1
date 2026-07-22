@@ -2,261 +2,83 @@ pipeline {
 
     agent any
 
-
     environment {
-
         SONAR_PROJECT_KEY = "freshshop-master"
-
+        REMOTE_HOST = "ubuntu@52.206.100.189"
     }
-
-
 
     stages {
 
-
-
         stage('Checkout Code') {
-
-
             steps {
-
-
                 git branch: 'main',
-                credentialsId: 'freebird2318-coder',
-                url: 'https://github.com/freebird2318-coder/freshshop-master-CICD-jenkins-sonarqube-docker.git'
-
-
+                    credentialsId: 'freebird2318-coder',
+                    url: 'https://github.com/freebird2318-coder/freshshop-master-CICD-jenkins-sonarqube-docker.git'
             }
-
-
         }
-
-
-
-
 
         stage('SonarQube Analysis') {
-
-
             steps {
-
-
-                echo "Running SonarQube Analysis"
-
-
+                echo 'Running SonarQube Analysis'
 
                 withSonarQubeEnv('sonar-srv') {
+                    script {
+                        def scannerHome = tool 'sonarqube-scanner'
 
-
-                    withCredentials([
-
-                        string(
-                            credentialsId: 'sonarqube-token',
-                            variable: 'SONAR_TOKEN'
-                        )
-
-                    ]) {
-
-
-
-                        script {
-
-
-                            def scannerHome = tool 'sonarqube-scanner'
-
-
-
-                            sh """
-
-
-                            ${scannerHome}/bin/sonar-scanner \\
-
-                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \\
-
-                            -Dsonar.sources=. \\
-
-                            -Dsonar.host.url=\$SONAR_HOST_URL \\
-
-                            -Dsonar.token=\$SONAR_TOKEN
-
-
-
-                            """
-
-
-
-                        }
-
-
-
+                        sh """
+                        ${scannerHome}/bin/sonar-scanner \
+                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                        -Dsonar.projectName=${SONAR_PROJECT_KEY} \
+                        -Dsonar.sources=. \
+                        -Dsonar.sourceEncoding=UTF-8
+                        """
                     }
-
-
-
                 }
-
-
-
             }
-
-
-
         }
 
-
-
-
-
-
         stage('Deploy To Docker Server') {
-
-
             steps {
-
-
 
                 sshagent(['docker-creds']) {
 
-
-
-                    sh '''
-
-
-                    ssh -o StrictHostKeyChecking=no ubuntu@52.206.100.189 "
-
-
-                    mkdir -p ~/website
-
-
-                    "
-
-
-
-
-
-                    rsync -av --delete \\
-
-                    --exclude=".git" \\
-
-                    --exclude=".scannerwork" \\
-
-                    ./ \\
-
-                    ubuntu@52.206.100.189:~/website/
-
-
-
-
-
-                    ssh -o StrictHostKeyChecking=no ubuntu@52.206.100.189 "
-
-
-
-                    cd ~/website
-
-
-
-
-
-                    docker rm -f freshshop-master1 || true
-
-
-
-
-
-                    docker build -t mywebsite .
-
-
-
-
-
-                    docker run -d \\
-
-                    -p 8086:80 \\
-
-                    --name freshshop-master1 \\
-
-                    mywebsite
-
-
-
-
-
-                    "
-
-
-
-
-
-
-                    ssh -o StrictHostKeyChecking=no ubuntu@52.206.100.189 "
-
-
-
-                    docker ps
-
-
-
-                    "
-
-
-
-
-
-                    '''
-
-
-
+                    sh """
+                    ssh -o StrictHostKeyChecking=no ${REMOTE_HOST} '
+                        mkdir -p ~/website
+                    '
+
+                    rsync -av --delete \
+                    --exclude=".git" \
+                    --exclude=".scannerwork" \
+                    ./ ${REMOTE_HOST}:~/website/
+
+                    ssh -o StrictHostKeyChecking=no ${REMOTE_HOST} '
+                        cd ~/website
+
+                        docker rm -f freshshop-master1 || true
+
+                        docker build -t mywebsite .
+
+                        docker run -d \
+                            --name freshshop-master1 \
+                            -p 8086:80 \
+                            mywebsite
+
+                        docker ps
+                    '
+                    """
                 }
-
-
-
             }
-
-
-
         }
-
-
-
-
     }
-
-
-
 
     post {
-
-
-
         success {
-
-
-
-            echo "Deployment Successful"
-
-
-
+            echo 'Deployment Successful'
         }
-
-
-
 
         failure {
-
-
-
-            echo "Deployment Failed"
-
-
-
+            echo 'Deployment Failed'
         }
-
-
-
-
     }
-
-
-
 }
