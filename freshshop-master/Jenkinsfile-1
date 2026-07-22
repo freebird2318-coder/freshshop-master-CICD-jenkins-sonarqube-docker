@@ -1,121 +1,324 @@
 pipeline {
+
     agent any
 
     environment {
-        REMOTE_HOST = "54.145.217.16"
-        REMOTE_USER = "ubuntu"
+
+        SONAR_PROJECT_KEY = "freshshop-master"
+
+        DOCKER_SERVER = "ubuntu@54.145.217.16"
+
+        DOCKER_PATH = "/home/ubuntu/website"
 
         IMAGE_NAME = "mywebsite"
+
         CONTAINER_NAME = "freshshop-master1"
 
         APP_PORT = "8086"
 
-        SCANNER_HOME = tool 'sonarqube-scanner'
     }
+
 
     stages {
 
+
         stage('Checkout Code') {
+
             steps {
-                git branch: 'main',
-                    credentialsId: 'freebird2318-coder',
-                    url: 'https://github.com/freebird2318-coder/freshshop-master-CICD-jenkins-sonarqube-docker.git'
+
+                echo "Getting code from GitHub"
+
+
+                git(
+                    url: 'https://github.com/freebird2318-coder/freshshop-master-CICD-jenkins-sonarqube-docker.git',
+                    branch: 'main',
+                    credentialsId: 'freebird2318-coder'
+                )
+
             }
+
         }
+
+
 
         stage('Verify Workspace') {
+
             steps {
+
                 sh '''
-                echo "Current Directory:"
+
+                echo "Current Directory"
+
                 pwd
 
-                echo "Workspace Files:"
+
+                echo "Workspace Files"
+
                 ls -la
+
                 '''
+
             }
+
         }
 
+
+
+
         stage('SonarQube Analysis') {
+
             steps {
+
+                echo "Running SonarQube Scan"
+
 
                 withSonarQubeEnv('sonar-srv') {
 
+
                     withCredentials([
-                        string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')
+
+                        string(
+                            credentialsId: 'sonarqube-token',
+                            variable: 'SONAR_TOKEN'
+                        )
+
                     ]) {
 
-                        sh """
-                        ${SCANNER_HOME}/bin/sonar-scanner \
-                        -Dsonar.projectKey=freshshop-master \
-                        -Dsonar.projectName=freshshop-master \
-                        -Dsonar.sources=. \
-                        -Dsonar.host.url=\$SONAR_HOST_URL \
-                        -Dsonar.token=\$SONAR_TOKEN
-                        """
+
+                        script {
+
+                            def scannerHome = tool 'sonar-scanner'
+
+
+                            sh """
+
+                            ${scannerHome}/bin/sonar-scanner \\
+
+                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \\
+
+                            -Dsonar.projectName=${SONAR_PROJECT_KEY} \\
+
+                            -Dsonar.sources=. \\
+
+                            -Dsonar.host.url=\$SONAR_HOST_URL \\
+
+                            -Dsonar.token=\$SONAR_TOKEN
+
+                            """
+
+                        }
 
                     }
+
                 }
+
             }
+
         }
+
+
+
 
         stage('Quality Gate') {
+
+
             steps {
+
+
+                echo "Checking SonarQube Quality Gate"
+
+
                 timeout(time: 5, unit: 'MINUTES') {
+
+
                     waitForQualityGate abortPipeline: true
+
+
                 }
+
+
             }
+
+
         }
 
-        stage('Deploy Application') {
+
+
+
+        stage('Copy Code To Docker Server') {
+
 
             steps {
 
-                sshagent(credentials: ['docker-creds']) {
+
+                echo "Copying Code To Docker Server"
+
+
+
+                sshagent(['docker-creds']) {
+
 
                     sh """
-                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} '
-                        mkdir -p ~/website
-                    '
 
-                    rsync -av --delete \
-                        --exclude=".git" \
-                        --exclude=".scannerwork" \
-                        ./ ${REMOTE_USER}@${REMOTE_HOST}:~/website/
 
-                    ssh -o StrictHostKeyChecking=no ${REMOTE_USER}@${REMOTE_HOST} '
+                    ssh -o StrictHostKeyChecking=no ${DOCKER_SERVER} '
 
-                        cd ~/website
+                    rm -rf ${DOCKER_PATH}
 
-                        docker stop ${CONTAINER_NAME} || true
-
-                        docker rm ${CONTAINER_NAME} || true
-
-                        docker rmi ${IMAGE_NAME} || true
-
-                        docker build -t ${IMAGE_NAME} .
-
-                        docker run -d \
-                            --name ${CONTAINER_NAME} \
-                            -p ${APP_PORT}:80 \
-                            ${IMAGE_NAME}
-
-                        docker ps
+                    mkdir -p ${DOCKER_PATH}
 
                     '
+
+
+
+                    rsync -av --delete \\
+
+                    --exclude=".git" \\
+
+                    --exclude=".scannerwork" \\
+
+                    ./ \\
+
+                    ${DOCKER_SERVER}:${DOCKER_PATH}/
+
+
+
                     """
+
+
                 }
+
+
             }
+
+
         }
+
+
+
+
+
+        stage('Docker Build') {
+
+
+            steps {
+
+
+                echo "Building Docker Image"
+
+
+
+                sshagent(['docker-creds']) {
+
+
+                    sh """
+
+
+                    ssh -o StrictHostKeyChecking=no ${DOCKER_SERVER} '
+
+
+                    cd ${DOCKER_PATH}
+
+
+                    docker build -t ${IMAGE_NAME}:latest .
+
+
+                    '
+
+
+                    """
+
+
+                }
+
+
+            }
+
+
+        }
+
+
+
+
+        stage('Deploy Container') {
+
+
+            steps {
+
+
+                echo "Deploying Application"
+
+
+
+                sshagent(['docker-creds']) {
+
+
+                    sh """
+
+
+                    ssh -o StrictHostKeyChecking=no ${DOCKER_SERVER} '
+
+
+
+                    docker stop ${CONTAINER_NAME} || true
+
+
+                    docker rm ${CONTAINER_NAME} || true
+
+
+
+                    docker run -d \\
+
+                    --name ${CONTAINER_NAME} \\
+
+                    -p ${APP_PORT}:80 \\
+
+                    ${IMAGE_NAME}:latest
+
+
+
+                    docker ps
+
+
+
+                    '
+
+
+
+                    """
+
+
+                }
+
+
+            }
+
+
+        }
+
+
     }
+
+
 
     post {
 
+
         success {
-            echo 'Pipeline executed successfully.'
+
+            echo "Deployment Successful"
+
         }
 
+
         failure {
-            echo 'Pipeline execution failed.'
+
+            echo "Deployment Failed"
+
         }
+
+
     }
+
+
 }
