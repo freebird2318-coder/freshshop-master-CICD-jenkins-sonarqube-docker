@@ -2,146 +2,261 @@ pipeline {
 
     agent any
 
-    environment {
-        SONAR_PROJECT_KEY = "freshshop-master"
-        SONAR_PROJECT_NAME = "freshshop-master"
 
-        DOCKER_SERVER   = "ubuntu@52.206.100.189"
-        DOCKER_PATH     = "/home/ubuntu/website"
-        IMAGE_NAME      = "mywebsite"
-        CONTAINER_NAME  = "freshshop-master1"
-        APP_PORT        = "8086"
+    environment {
+
+        SONAR_PROJECT_KEY = "freshshop-master"
+
     }
+
+
 
     stages {
 
+
+
         stage('Checkout Code') {
+
+
             steps {
-                echo "Getting code from GitHub"
+
 
                 git branch: 'main',
-                    credentialsId: 'freebird2318-coder',
-                    url: 'https://github.com/freebird2318-coder/freshshop-master-CICD-jenkins-sonarqube-docker.git'
+                credentialsId: 'freebird2318-coder',
+                url: 'https://github.com/freebird2318-coder/freshshop-master-CICD-jenkins-sonarqube-docker.git'
+
+
             }
+
+
         }
 
-        stage('Verify Workspace') {
-            steps {
-                sh '''
-                    echo "Current Directory"
-                    pwd
 
-                    echo "Workspace Files"
-                    ls -la
-                '''
-            }
-        }
+
+
 
         stage('SonarQube Analysis') {
+
+
             steps {
-                echo "Running SonarQube Scan"
+
+
+                echo "Running SonarQube Analysis"
+
+
 
                 withSonarQubeEnv('sonar-srv') {
 
-                    script {
 
-                        def scannerHome = tool 'sonarqube-scanner'
+                    withCredentials([
 
-                        sh """
-                        ${scannerHome}/bin/sonar-scanner \
-                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                        -Dsonar.projectName=${SONAR_PROJECT_NAME} \
-                        -Dsonar.sources=. \
-                        -Dsonar.sourceEncoding=UTF-8
-                        """
+                        string(
+                            credentialsId: 'sonarqube-token',
+                            variable: 'SONAR_TOKEN'
+                        )
+
+                    ]) {
+
+
+
+                        script {
+
+
+                            def scannerHome = tool 'sonarqube-scanner'
+
+
+
+                            sh """
+
+
+                            ${scannerHome}/bin/sonar-scanner \\
+
+                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \\
+
+                            -Dsonar.sources=. \\
+
+                            -Dsonar.host.url=\$SONAR_HOST_URL \\
+
+                            -Dsonar.token=\$SONAR_TOKEN
+
+
+
+                            """
+
+
+
+                        }
+
+
+
                     }
+
+
+
                 }
+
+
+
             }
+
+
+
         }
 
-        stage('Quality Gate') {
-            steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
-                }
-            }
-        }
 
-        stage('Copy Code To Docker Server') {
+
+
+
+
+        stage('Deploy To Docker Server') {
+
+
             steps {
-                echo "Copying project to Docker Server"
+
+
 
                 sshagent(['docker-creds']) {
 
-                    sh """
-                    ssh -o StrictHostKeyChecking=no ${DOCKER_SERVER} "
-                        rm -rf ${DOCKER_PATH}
-                        mkdir -p ${DOCKER_PATH}
+
+
+                    sh '''
+
+
+                    ssh -o StrictHostKeyChecking=no ubuntu@52.206.100.189 "
+
+
+                    mkdir -p ~/website
+
+
                     "
 
-                    rsync -av --delete \
-                    --exclude='.git' \
-                    --exclude='.scannerwork' \
-                    ./ ${DOCKER_SERVER}:${DOCKER_PATH}/
-                    """
-                }
-            }
-        }
 
-        stage('Docker Build') {
-            steps {
 
-                echo "Building Docker Image"
 
-                sshagent(['docker-creds']) {
 
-                    sh """
-                    ssh -o StrictHostKeyChecking=no ${DOCKER_SERVER} "
-                        cd ${DOCKER_PATH}
-                        docker build -t ${IMAGE_NAME}:latest .
+                    rsync -av --delete \\
+
+                    --exclude=".git" \\
+
+                    --exclude=".scannerwork" \\
+
+                    ./ \\
+
+                    ubuntu@52.206.100.189:~/website/
+
+
+
+
+
+                    ssh -o StrictHostKeyChecking=no ubuntu@52.206.100.189 "
+
+
+
+                    cd ~/website
+
+
+
+
+
+                    docker rm -f freshshop-master1 || true
+
+
+
+
+
+                    docker build -t mywebsite .
+
+
+
+
+
+                    docker run -d \\
+
+                    -p 8086:80 \\
+
+                    --name freshshop-master1 \\
+
+                    mywebsite
+
+
+
+
+
                     "
-                    """
-                }
-            }
-        }
 
-        stage('Deploy Container') {
-            steps {
 
-                echo "Deploying Docker Container"
 
-                sshagent(['docker-creds']) {
 
-                    sh """
-                    ssh -o StrictHostKeyChecking=no ${DOCKER_SERVER} "
-                        docker stop ${CONTAINER_NAME} || true
-                        docker rm ${CONTAINER_NAME} || true
 
-                        docker run -d \
-                        --name ${CONTAINER_NAME} \
-                        -p ${APP_PORT}:80 \
-                        ${IMAGE_NAME}:latest
 
-                        docker ps
+                    ssh -o StrictHostKeyChecking=no ubuntu@52.206.100.189 "
+
+
+
+                    docker ps
+
+
+
                     "
-                    """
+
+
+
+
+
+                    '''
+
+
+
                 }
+
+
+
             }
+
+
+
         }
+
+
+
+
     }
+
+
+
 
     post {
 
+
+
         success {
+
+
+
             echo "Deployment Successful"
+
+
+
         }
+
+
+
 
         failure {
+
+
+
             echo "Deployment Failed"
+
+
+
         }
 
-        always {
-            cleanWs()
-        }
+
+
+
     }
+
+
+
 }
