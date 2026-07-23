@@ -4,7 +4,7 @@ pipeline {
 
     environment {
         SONAR_PROJECT_KEY = "freshshop-master"
-        REMOTE_HOST = "ubuntu@52.206.100.189"
+        REMOTE_HOST = "ubuntu@3.82.2.102"
     }
 
     stages {
